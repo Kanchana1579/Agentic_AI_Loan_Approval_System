@@ -1,5 +1,4 @@
 # Agentic_AI_Loan_Approval_System
-# Agentic AI Loan Approval System
 
 ## Overview
 
