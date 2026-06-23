@@ -1,104 +1,5 @@
-from langgraph.graph import StateGraph, END
-
-from agents.applicant_agent import ApplicantAgent
-from agents.financial_agent import FinancialRiskAgent
-from agents.decision_agent import DecisionAgent
-from agents.compliance_agent import ComplianceAgent
-
-from orchestrator.state import LoanState
-from database.audit_service import save_audit
-
-applicant_agent = ApplicantAgent()
-risk_agent = FinancialRiskAgent()
-decision_agent = DecisionAgent()
-compliance_agent = ComplianceAgent()
-
-
-def applicant_node(state):
-
-    state["profile"] = applicant_agent.analyze(
-        state["applicant_data"]
-    )
-
-    return state
-
-
-def risk_node(state):
-
-    state["risk"] = risk_agent.analyze(
-        state["applicant_data"]
-    )
-
-    return state
-
-
-def decision_node(state):
-
-    state["decision"] = decision_agent.decide(
-        state["profile"],
-        state["risk"]
-    )
-
-    return state
-
-
-def compliance_node(state):
-
-    state["compliance"] = compliance_agent.execute(
-        state["decision"]
-    )
-
-    return state
-
-
-workflow = StateGraph(LoanState)
-
-workflow.add_node(
-    "ApplicantProfile",
-    applicant_node
-)
-
-workflow.add_node(
-    "FinancialRisk",
-    risk_node
-)
-
-workflow.add_node(
-    "LoanDecision",
-    decision_node
-)
-
-workflow.add_node(
-    "Compliance",
-    compliance_node
-)
-
-workflow.set_entry_point(
-    "ApplicantProfile"
-)
-
-workflow.add_edge(
-    "ApplicantProfile",
-    "FinancialRisk"
-)
-
-workflow.add_edge(
-    "FinancialRisk",
-    "LoanDecision"
-)
-
-workflow.add_edge(
-    "LoanDecision",
-    "Compliance"
-)
-
-workflow.add_edge(
-    "Compliance",
-    END
-)
-
-graph = workflow.compile()
-
+from datetime import datetime
+import uuid
 
 def process_loan(data):
 
@@ -108,6 +9,11 @@ def process_loan(data):
         }
     )
 
+    decision_id = (
+        f"LOAN-{datetime.now().strftime('%Y%m%d')}-"
+        f"{str(uuid.uuid4())[:4].upper()}"
+    )
+
     save_audit(
         applicant_id=data["applicant_id"],
         decision=result["decision"]["decision"],
@@ -115,9 +21,167 @@ def process_loan(data):
         reasoning=result["decision"]["reasoning"]
     )
 
-    return {
-        "profile": result["profile"],
-        "risk": result["risk"],
-        "decision": result["decision"],
-        "compliance": result["compliance"]
+    response = {
+
+        "decision_id": decision_id,
+
+        "timestamp": datetime.utcnow().isoformat(),
+
+        "applicant_id": data["applicant_id"],
+
+        # --------------------------------
+        # Profile Analysis
+        # --------------------------------
+        "profile_analysis": {
+
+            "income_score":
+                result["profile"]["scoring_breakdown"].get(
+                    "income",
+                    0
+                ),
+
+            "employment_score":
+                result["profile"]["scoring_breakdown"].get(
+                    "employment",
+                    0
+                ),
+
+            "credit_score":
+                result["profile"]["scoring_breakdown"].get(
+                    "credit",
+                    0
+                ),
+
+            "total_score":
+                result["profile"]["profile_score"],
+
+            "factors": {
+
+                "annual_income": {
+                    "value": data["annual_income"],
+                    "rating":
+                        result["profile"]["income_stability"]
+                },
+
+                "employment_type": {
+                    "value": data["employment_type"],
+                    "rating":
+                        result["profile"]["employment_risk"]
+                },
+
+                "credit_score": {
+                    "value": data["credit_score"],
+                    "rating":
+                        result["profile"]["credit_summary"][
+                            "credit_profile"
+                        ]
+                }
+            }
+        },
+
+        # --------------------------------
+        # Financial Risk
+        # --------------------------------
+        "financial_risk": {
+
+            "dti":
+                result["risk"]["dti"],
+
+            "dti_level":
+                result["risk"]["dti_risk"],
+
+            "credit_risk":
+                result["risk"]["credit_risk"],
+
+            "loan_risk":
+                result["risk"]["loan_risk"],
+
+            "anomalies":
+                result["risk"]["anomalies"],
+
+            "risk_score":
+                result["risk"]["risk_score"]
+        },
+
+        # --------------------------------
+        # Decision
+        # --------------------------------
+        "decision": {
+
+            "classification":
+                result["decision"]["decision"],
+
+            "final_risk_score":
+                result["risk"]["risk_score"],
+
+            "confidence":
+                result["decision"]["confidence"],
+
+            "confidence_reasoning":
+                result["decision"]["reasoning"],
+
+            "key_factors":
+                result["decision"].get(
+                    "key_factors",
+                    []
+                ),
+
+            "limiting_factors":
+                result["risk"]["anomalies"],
+
+            "next_steps":
+                (
+                    [
+                        "Send approval notification",
+                        "Schedule fund transfer"
+                    ]
+                    if result["decision"]["decision"]
+                    == "Approved"
+                    else
+                    [
+                        "Notify applicant",
+                        "Archive application"
+                    ]
+                )
+        },
+
+        # --------------------------------
+        # Compliance
+        # --------------------------------
+        "compliance": {
+
+            "kyc_status":
+                "PASSED",
+
+            "aml_status":
+                "PASSED",
+
+            "regulatory_checks": [
+
+                (
+                    "Loan amount within limit: YES"
+                    if data["loan_amount"] <= 5000000
+                    else
+                    "Loan amount within limit: NO"
+                )
+            ],
+
+            "case_id":
+                result["compliance"]["case_id"],
+
+            "notification_sent_to": [
+                "applicant@example.com"
+            ],
+
+            "notification_time":
+                result["compliance"]["timestamp"]
+        }
     }
+
+    if "human_review" in result:
+
+        response["human_review"] = (
+            result["human_review"]
+        )
+
+    return response

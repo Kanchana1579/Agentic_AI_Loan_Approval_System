@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 client = Anthropic(
-    api_key=os.getenv("ANTHROPIC_API_KEY")
+    api_key=os.getenv("ANTHROPIC_API_KEY"),
+    base_url=os.getenv("ANTHROPIC_BASE_URL")
 )
 
 def get_loan_decision(profile, risk):
