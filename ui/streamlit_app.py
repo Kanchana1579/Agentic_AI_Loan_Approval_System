@@ -40,19 +40,26 @@ liabilities = st.number_input(
 
 if st.button("Submit"):
 
-    payload ={
-        "applicant_id":applicant_id,
-        "age":age,
-        "annual_income":income,
-        "employment_type":employment,
-        "credit_score":credit_score,
-        "loan_amount":loan_amount,
+    payload = {
+        "applicant_id": applicant_id,
+        "age": age,
+        "annual_income": income,
+        "employment_type": employment,
+        "credit_score": credit_score,
+        "loan_amount": loan_amount,
         "existing_liabilities": liabilities
     }
 
     response = requests.post(
-    "http://localhost:8000/loan/evaluate",
-    json=payload
-)
+        "http://localhost:8000/loan/evaluate",
+        json=payload
+    )
 
-    st.json(response.json())
+    st.write("Status Code:", response.status_code)
+
+    try:
+        data = response.json()
+        st.json(data)
+    except Exception:
+        st.error("Backend did not return JSON")
+        st.text(response.text)

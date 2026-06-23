@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+streamlit
+requests
+langgraph
+langchain
+anthropic
+python-dotenv
+sqlalchemy
+fastmcp
+pydantic
